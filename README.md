@@ -55,6 +55,26 @@ A failed job fires an alert, and the next successful run of the same workflow, j
     token: ${{ secrets.INCIDENT_IO_ALERT_TOKEN }}
 ```
 
+### Alert on a single step
+
+To alert on one step, such as a deploy, give it an `id` and pass its `outcome` as the status:
+
+```yaml
+- id: deploy
+  run: ./deploy.sh
+
+- uses: samstarling/incident-io-action@v1
+  if: ${{ !cancelled() && (steps.deploy.outcome == 'failure' || steps.deploy.outcome == 'success') }}
+  with:
+    alert-source-config-id: 01ABCDEF...
+    token: ${{ secrets.INCIDENT_IO_ALERT_TOKEN }}
+    status: ${{ steps.deploy.outcome }}
+    title: Deploy failed on ${{ github.ref_name }}
+    deduplication-key: ${{ github.repository }}/deploy/${{ github.ref_name }}
+```
+
+A failed deploy fires an alert and the next successful one resolves it. If an earlier step fails, the deploy is skipped and nothing is sent. Use `outcome` rather than `conclusion`, which is `success` for a failed step with `continue-on-error`. Set a deduplication key so the alert does not merge with a job-level alert from the same job.
+
 ### Watch a whole workflow from outside it
 
 To watch another workflow without editing it, or to get one alert per workflow rather than per job, use `workflow_run`. The action then describes the run that triggered it, and lists every failed job in that run:
