@@ -1,40 +1,21 @@
 # incident-io-action
 
-Send a failing GitHub Actions job to an [incident.io](https://incident.io) HTTP alert source, and resolve the alert when the job next succeeds.
-
-No build step and no dependencies beyond `bash`, `curl` and `jq`, which every GitHub-hosted runner has.
+Send a failing GitHub Actions job to an [incident.io](https://incident.io) HTTP alert source, and resolve the alert when the job next succeeds. There's no build step, and it has and no dependencies beyond `bash`, `curl` and `jq`, which every GitHub-hosted runner has.
 
 ## Setup
 
 1. In incident.io, go to **Alerts → Sources → New alert source → HTTP**.
-2. Copy the alert source config ID (the last segment of the URL it gives you) and the secret token.
-3. Add the token as a repository or organisation secret, e.g. `INCIDENT_IO_ALERT_TOKEN`.
+2. Copy the alert source config ID and the secret token.
+3. Add the token as a secret, e.g. `INCIDENT_IO_ALERT_TOKEN`.
 
 ## What the alert includes
 
 - The workflow, job, branch and a link to the run.
 - The commit: SHA, message, and author's name, email and GitHub login. On pull requests this is the PR's head commit, not the merge commit.
-- Who or what triggered the run.
+- Who (or what) triggered the run.
 - On failure, the failed jobs and steps, with their error messages taken from the job's error annotations (anything a step reports with `::error::`, and most test reporters and linters).
 
 To keep the payload bounded, an alert lists at most five failed jobs, five error messages per job and 1,000 characters per message. Whenever a limit cuts something, the alert says so: the description ends the list with "…and N more", and the metadata carries the totals and a `truncated` flag.
-
-For example:
-
-```markdown
-**Workflow:** CI (job `test`)
-**Branch:** `fix-login`
-**Commit:** [`3f2a9c1`](https://github.com/acme/app/commit/3f2a9c1...) Fix the flaky login test
-**Author:** Jane Doe @janedoe
-**Triggered by:** pull_request from @sam
-
-**Failed:**
-
-- [test (ios-18)](https://github.com/acme/app/actions/runs/1/job/12), step `Run tests`
-  - AssertionError: expected 2 to equal 3
-
-[View workflow run](https://github.com/acme/app/actions/runs/1/attempts/1)
-```
 
 The commit and failure details come from the GitHub API, using the job's `GITHUB_TOKEN`. If your workflow sets `permissions`, grant these:
 
