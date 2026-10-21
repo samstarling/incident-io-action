@@ -1,0 +1,11 @@
+[tools]
+shellcheck = "0.11.0"
+shfmt = "3.14.1"
+
+[tasks.lint]
+description = "Lint and check formatting of shell scripts"
+run = ["shellcheck send-alert.sh", "shfmt --diff send-alert.sh"]
+
+[tasks.fmt]
+description = "Format shell scripts"
+run = "shfmt --write send-alert.sh"
