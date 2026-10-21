@@ -11,7 +11,7 @@ inputs:
     description: ID of the incident.io HTTP alert source (the last segment of its URL).
     required: true
   token:
-    description: The alert source's secret token.
+    description: The alert source's secret token, without the "Bearer " prefix.
     required: true
   status:
     description: >-

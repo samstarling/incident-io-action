@@ -4,9 +4,9 @@ Send a failing GitHub Actions job to an [incident.io](https://incident.io) HTTP 
 
 ## Setup
 
-1. In incident.io, go to **Alerts → Sources → New alert source → HTTP**.
+1. In incident.io, go to **Alerts → Sources → New alert source → HTTP**, and choose the **Default** type.
 2. Copy the alert source config ID and the secret token.
-3. Add the token as a secret, e.g. `INCIDENT_IO_ALERT_TOKEN`.
+3. Add the token as a secret, e.g. `INCIDENT_IO_ALERT_TOKEN`. Store only the token, without the `Bearer ` prefix: the action adds that itself.
 
 ## What the alert includes
 
