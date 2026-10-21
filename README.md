@@ -1,4 +1,4 @@
-# incident.io alert action
+# incident-io-action
 
 Send a failing GitHub Actions job to an [incident.io](https://incident.io)
 HTTP alert source, and resolve the alert when the job next succeeds.
