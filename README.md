@@ -67,7 +67,7 @@ for what it could not read.
 Add this as the **last step** of the job you want to watch:
 
 ```yaml
-- uses: semaloop/incident-io-alert@v1
+- uses: samstarling/incident-io-action@v1
   if: ${{ !cancelled() }}
   with:
     alert-source-config-id: 01ABCDEF...
@@ -82,7 +82,7 @@ the one alert.
 ### Alert on failure only
 
 ```yaml
-- uses: semaloop/incident-io-alert@v1
+- uses: samstarling/incident-io-action@v1
   if: failure()
   with:
     alert-source-config-id: 01ABCDEF...
@@ -107,7 +107,7 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event.workflow_run.conclusion == 'failure' || github.event.workflow_run.conclusion == 'success'
     steps:
-      - uses: semaloop/incident-io-alert@v1
+      - uses: samstarling/incident-io-action@v1
         with:
           alert-source-config-id: 01ABCDEF...
           token: ${{ secrets.INCIDENT_IO_ALERT_TOKEN }}
