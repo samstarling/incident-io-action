@@ -15,7 +15,7 @@ Send a failing GitHub Actions job to an [incident.io](https://incident.io) HTTP 
 - Who (or what) triggered the run.
 - On failure, the failed jobs and steps, with their error messages taken from the job's error annotations (anything a step reports with `::error::`, and most test reporters and linters).
 
-To keep the payload bounded, an alert lists at most five failed jobs, five error messages per job and 1,000 characters per message. Whenever a limit cuts something, the alert says so: the description ends the list with "…and N more", and the metadata carries the totals and a `truncated` flag.
+To keep the payload bounded, an alert lists at most five failed jobs, five error messages per job and 1,000 characters per message. Whenever a limit cuts something, the metadata says so with the totals and a `truncated` flag.
 
 The commit and failure details come from the GitHub API, using the job's `GITHUB_TOKEN`. If your workflow sets `permissions`, grant these:
 
@@ -86,7 +86,7 @@ jobs:
 | `token` | (required) | The alert source's secret token. |
 | `status` | `firing` | `firing` or `resolved`, or a job status: `failure` fires, `success` resolves, `cancelled` and `skipped` send nothing. |
 | `title` | `<workflow> failed on <branch> in <repo>` | Alert title. |
-| `description` | Run summary | Markdown description, as above. |
+| `description` | None | Markdown description. The run details are all in the metadata, so this is only for extra context. |
 | `deduplication-key` | `<repo>/<workflow>/<job>/<ref>`, or `<repo>/<workflow>/<branch>` under `workflow_run` | Groups repeat failures into one alert and pairs a resolve with its firing. |
 | `metadata` | `{}` | JSON object merged over the default metadata. |
 | `source-url` | The workflow run | Link shown on the alert. |

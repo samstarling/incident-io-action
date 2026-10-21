@@ -24,7 +24,7 @@ inputs:
     required: false
     default: ""
   description:
-    description: Alert description (markdown). Defaults to a summary of the run.
+    description: Alert description (markdown). Omitted by default, since the run details are in the metadata.
     required: false
     default: ""
   deduplication-key:

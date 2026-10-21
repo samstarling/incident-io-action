@@ -167,52 +167,11 @@ dedup_key="${INPUT_DEDUPLICATION_KEY:-$default_dedup_key}"
 title="${INPUT_TITLE:-${workflow} failed on ${branch} in ${repo}}"
 source_url="${INPUT_SOURCE_URL:-$run_url}"
 
-if [[ -n "${INPUT_DESCRIPTION:-}" ]]; then
-  description="$INPUT_DESCRIPTION"
-else
-  description=$(
-    jq -rn \
-      --arg workflow "$workflow" --arg job "$job" --arg branch "$branch" --arg sha "$sha" \
-      --arg trigger "$trigger" --arg actor "$actor" --arg run_url "$run_url" \
-      --argjson commit "$commit" --arg failure_details "$failure_details" \
-      --argjson failed_jobs "$failed_jobs" --argjson failed_jobs_total "$failed_jobs_total" '
-      [
-        "**Workflow:** \($workflow)" + (if $job != "" then " (job `\($job)`)" else "" end),
-        "**Branch:** `\($branch)`",
-        "**Commit:** [`\($sha[0:7])`](\($commit.url))"
-          + (if $commit.message then " " + ($commit.message | split("\n")[0]) else "" end),
-        (if $commit.author_name or $commit.author_login then
-          "**Author:** " + ([$commit.author_name, ($commit.author_login | values | "@\(.)")] | map(values) | join(" "))
-        else empty end),
-        "**Triggered by:** \($trigger) from @\($actor)"
-      ]
-      + (if $failure_details == "unavailable" then
-          ["", "**Failed:** details could not be read from the GitHub API."]
-        elif ($failed_jobs | length) > 0 then
-          ["", "**Failed:**"]
-          + [$failed_jobs[]
-              | "- [\(.name)](\(.url))"
-                + (if (.failed_steps | length) > 0 then ", step " + (.failed_steps | map("`\(.)`") | join(", ")) else "" end),
-                (if .errors == null then "  - _Error messages could not be read._"
-                else
-                  (.errors[] | (.message | split("\n")[0]) as $first_line
-                    | "  - " + $first_line[0:200] + (if ($first_line | length) > 200 or .message != $first_line then "…" else "" end)),
-                  (if .errors_truncated then "  - …and \(.errors_total - (.errors | length)) more" else empty end)
-                end)]
-          + (if $failed_jobs_total > ($failed_jobs | length) then
-              ["- …and \($failed_jobs_total - ($failed_jobs | length)) more failed jobs"]
-            else [] end)
-        else [] end)
-      + ["", "[View workflow run](\($run_url))"]
-      | join("\n")'
-  )
-fi
-
 body=$(
   jq -n \
     --arg status "$status" \
     --arg title "$title" \
-    --arg description "$description" \
+    --arg description "${INPUT_DESCRIPTION:-}" \
     --arg dedup_key "$dedup_key" \
     --arg source_url "$source_url" \
     --argjson extra "$metadata" \
@@ -235,7 +194,6 @@ body=$(
     '{
       status: $status,
       title: $title,
-      description: $description,
       deduplication_key: $dedup_key,
       source_url: $source_url,
       metadata: ({
@@ -260,7 +218,7 @@ body=$(
         failed_jobs_total: $failed_jobs_total,
         failed_jobs_truncated: (if $failed_jobs_total == null then null else $failed_jobs_total > $max_jobs end)
       } + $extra)
-    }'
+    } + (if $description != "" then {description: $description} else {} end)'
 )
 
 url="${INPUT_API_URL%/}/v2/alert_events/http/${INPUT_ALERT_SOURCE_CONFIG_ID}"
