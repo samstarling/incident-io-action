@@ -43,7 +43,7 @@ github_api() {
 
 api_notice() {
   if [[ -n "${INPUT_GITHUB_TOKEN:-}" ]]; then
-    echo "::notice::The alert will not include $1, because they could not be read from the GitHub API. The token needs $2."
+    echo "::notice::The alert will not include $1: reading from the GitHub API failed. The token needs $2."
   fi
 }
 
