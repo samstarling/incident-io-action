@@ -1,0 +1,78 @@
+name: incident.io alert
+description: >-
+  Send a GitHub Actions failure to an incident.io HTTP alert source, and
+  resolve it when the job next succeeds.
+branding:
+  icon: alert-triangle
+  color: red
+
+inputs:
+  alert-source-config-id:
+    description: ID of the incident.io HTTP alert source (the last segment of its URL).
+    required: true
+  token:
+    description: The alert source's secret token.
+    required: true
+  status:
+    description: >-
+      firing, resolved, or a job status (pass `job.status`): failure
+      fires, success resolves, cancelled sends nothing.
+    required: false
+    default: firing
+  title:
+    description: Alert title. Defaults to "<workflow> failed on <ref> in <repo>".
+    required: false
+    default: ""
+  description:
+    description: Alert description (markdown). Defaults to a summary of the run.
+    required: false
+    default: ""
+  deduplication-key:
+    description: >-
+      Groups repeat failures into one alert and pairs a resolve with its
+      firing. Defaults to repository/workflow/job/ref.
+    required: false
+    default: ""
+  metadata:
+    description: JSON object merged over the default run metadata.
+    required: false
+    default: "{}"
+  source-url:
+    description: Link shown on the alert. Defaults to the workflow run.
+    required: false
+    default: ""
+  api-url:
+    description: incident.io API base URL.
+    required: false
+    default: https://api.incident.io
+  fail-on-error:
+    description: Fail the step if incident.io rejects the event, rather than warning.
+    required: false
+    default: "false"
+
+outputs:
+  sent-status:
+    description: The status sent to incident.io (firing or resolved), or empty if nothing was sent.
+    value: ${{ steps.send.outputs.sent-status }}
+  deduplication-key:
+    description: The deduplication key used.
+    value: ${{ steps.send.outputs.deduplication-key }}
+
+runs:
+  using: composite
+  steps:
+    - id: send
+      shell: bash
+      run: "$GITHUB_ACTION_PATH/send-alert.sh"
+      env:
+        INPUT_ALERT_SOURCE_CONFIG_ID: ${{ inputs.alert-source-config-id }}
+        INPUT_TOKEN: ${{ inputs.token }}
+        INPUT_STATUS: ${{ inputs.status }}
+        INPUT_TITLE: ${{ inputs.title }}
+        INPUT_DESCRIPTION: ${{ inputs.description }}
+        INPUT_DEDUPLICATION_KEY: ${{ inputs.deduplication-key }}
+        INPUT_METADATA: ${{ inputs.metadata }}
+        INPUT_SOURCE_URL: ${{ inputs.source-url }}
+        INPUT_API_URL: ${{ inputs.api-url }}
+        INPUT_FAIL_ON_ERROR: ${{ inputs.fail-on-error }}
+        HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
