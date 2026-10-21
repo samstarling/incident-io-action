@@ -1,33 +1,23 @@
 # incident-io-action
 
-Send a failing GitHub Actions job to an [incident.io](https://incident.io)
-HTTP alert source, and resolve the alert when the job next succeeds.
+Send a failing GitHub Actions job to an [incident.io](https://incident.io) HTTP alert source, and resolve the alert when the job next succeeds.
 
-No build step and no dependencies beyond `bash`, `curl` and `jq`, which every
-GitHub-hosted runner has.
+No build step and no dependencies beyond `bash`, `curl` and `jq`, which every GitHub-hosted runner has.
 
 ## Setup
 
 1. In incident.io, go to **Alerts → Sources → New alert source → HTTP**.
-2. Copy the alert source config ID (the last segment of the URL it gives you)
-   and the secret token.
-3. Add the token as a repository or organisation secret, e.g.
-   `INCIDENT_IO_ALERT_TOKEN`.
+2. Copy the alert source config ID (the last segment of the URL it gives you) and the secret token.
+3. Add the token as a repository or organisation secret, e.g. `INCIDENT_IO_ALERT_TOKEN`.
 
 ## What the alert includes
 
 - The workflow, job, branch and a link to the run.
-- The commit: SHA, message, and author's name, email and GitHub login. On
-  pull requests this is the PR's head commit, not the merge commit.
+- The commit: SHA, message, and author's name, email and GitHub login. On pull requests this is the PR's head commit, not the merge commit.
 - Who or what triggered the run.
-- On failure, the failed jobs and steps, with their error messages taken from
-  the job's error annotations (anything a step reports with `::error::`, and
-  most test reporters and linters).
+- On failure, the failed jobs and steps, with their error messages taken from the job's error annotations (anything a step reports with `::error::`, and most test reporters and linters).
 
-To keep the payload bounded, an alert lists at most five failed jobs, five
-error messages per job and 1,000 characters per message. Whenever a limit
-cuts something, the alert says so: the description ends the list with "…and
-N more", and the metadata carries the totals and a `truncated` flag.
+To keep the payload bounded, an alert lists at most five failed jobs, five error messages per job and 1,000 characters per message. Whenever a limit cuts something, the alert says so: the description ends the list with "…and N more", and the metadata carries the totals and a `truncated` flag.
 
 For example:
 
@@ -46,8 +36,7 @@ For example:
 [View workflow run](https://github.com/acme/app/actions/runs/1/attempts/1)
 ```
 
-The commit and failure details come from the GitHub API, using the job's
-`GITHUB_TOKEN`. If your workflow sets `permissions`, grant these:
+The commit and failure details come from the GitHub API, using the job's `GITHUB_TOKEN`. If your workflow sets `permissions`, grant these:
 
 ```yaml
 permissions:
@@ -56,9 +45,7 @@ permissions:
   checks: read # error messages
 ```
 
-Without them the alert still sends, falling back to what the event payload
-carries (the commit on `push` and `workflow_run` events) and logging a notice
-for what it could not read.
+Without them the alert still sends, falling back to what the event payload carries (the commit on `push` and `workflow_run` events) and logging a notice for what it could not read.
 
 ## Usage
 
@@ -75,9 +62,7 @@ Add this as the **last step** of the job you want to watch:
     status: ${{ job.status }}
 ```
 
-A failed job fires an alert; the next successful run of the same workflow,
-job and branch resolves it. Repeat failures in between are deduplicated into
-the one alert.
+A failed job fires an alert; the next successful run of the same workflow, job and branch resolves it. Repeat failures in between are deduplicated into the one alert.
 
 ### Alert on failure only
 
@@ -91,9 +76,7 @@ the one alert.
 
 ### Watch a whole workflow from outside it
 
-To watch another workflow without editing it, or to get one alert per
-workflow rather than per job, use `workflow_run`. The action then describes
-the run that triggered it, and lists every failed job in that run:
+To watch another workflow without editing it, or to get one alert per workflow rather than per job, use `workflow_run`. The action then describes the run that triggered it, and lists every failed job in that run:
 
 ```yaml
 on:
@@ -139,8 +122,7 @@ jobs:
 
 ## Metadata
 
-Every event carries this metadata, which you can use in alert source
-attribute expressions, routes and filters in incident.io:
+Every event carries this metadata, which you can use in alert source attribute expressions, routes and filters in incident.io:
 
 | Key                                                                | Description                                                                                                                                                      |
 | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -174,8 +156,6 @@ Each entry in `failed_jobs` looks like this:
 }
 ```
 
-`errors`, `errors_total` and `errors_truncated` are null when the job's error
-messages could not be read. `path` and `line` are null for errors that do not
-point at a file.
+`errors`, `errors_total` and `errors_truncated` are null when the job's error messages could not be read. `path` and `line` are null for errors that do not point at a file.
 
 Keys in the `metadata` input are added to these, and override them on a clash.
