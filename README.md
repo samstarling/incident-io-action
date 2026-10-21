@@ -43,7 +43,7 @@ Add this as the **last step** of the job you want to watch:
     status: ${{ job.status }}
 ```
 
-A failed job fires an alert; the next successful run of the same workflow, job and branch resolves it. Repeat failures in between are deduplicated into the one alert.
+A failed job fires an alert, and the next successful run of the same workflow, job and branch resolves it. Repeat failures in between are deduplicated into one alert.
 
 ### Alert on failure only
 
@@ -80,42 +80,42 @@ jobs:
 
 ## Inputs
 
-| Input                    | Default                                                                               | Description                                                                                                           |
-| ------------------------ | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `alert-source-config-id` | (required)                                                                            | ID of the incident.io HTTP alert source.                                                                              |
-| `token`                  | (required)                                                                            | The alert source's secret token.                                                                                      |
-| `status`                 | `firing`                                                                              | `firing` or `resolved`, or a job status: `failure` fires, `success` resolves, `cancelled` and `skipped` send nothing. |
-| `title`                  | `<workflow> failed on <branch> in <repo>`                                             | Alert title.                                                                                                          |
-| `description`            | Run summary                                                                           | Markdown description, as above.                                                                                       |
-| `deduplication-key`      | `<repo>/<workflow>/<job>/<ref>`, or `<repo>/<workflow>/<branch>` under `workflow_run` | Groups repeat failures into one alert and pairs a resolve with its firing.                                            |
-| `metadata`               | `{}`                                                                                  | JSON object merged over the default metadata.                                                                         |
-| `source-url`             | The workflow run                                                                      | Link shown on the alert.                                                                                              |
-| `github-token`           | `${{ github.token }}`                                                                 | Token for the commit and failure lookups. Empty to skip them.                                                         |
-| `api-url`                | `https://api.incident.io`                                                             | API base URL.                                                                                                         |
-| `fail-on-error`          | `false`                                                                               | Fail the step if incident.io rejects the event, rather than logging a warning.                                        |
+| Input | Default | Description |
+| --- | --- | --- |
+| `alert-source-config-id` | (required) | ID of the incident.io HTTP alert source. |
+| `token` | (required) | The alert source's secret token. |
+| `status` | `firing` | `firing` or `resolved`, or a job status: `failure` fires, `success` resolves, `cancelled` and `skipped` send nothing. |
+| `title` | `<workflow> failed on <branch> in <repo>` | Alert title. |
+| `description` | Run summary | Markdown description, as above. |
+| `deduplication-key` | `<repo>/<workflow>/<job>/<ref>`, or `<repo>/<workflow>/<branch>` under `workflow_run` | Groups repeat failures into one alert and pairs a resolve with its firing. |
+| `metadata` | `{}` | JSON object merged over the default metadata. |
+| `source-url` | The workflow run | Link shown on the alert. |
+| `github-token` | `${{ github.token }}` | Token for the commit and failure lookups. Empty to skip them. |
+| `api-url` | `https://api.incident.io` | API base URL. |
+| `fail-on-error` | `false` | Fail the step if incident.io rejects the event, rather than logging a warning. |
 
 ## Outputs
 
-| Output              | Description                                           |
-| ------------------- | ----------------------------------------------------- |
-| `sent-status`       | `firing` or `resolved`, or empty if nothing was sent. |
-| `deduplication-key` | The deduplication key used.                           |
+| Output | Description |
+| --- | --- |
+| `sent-status` | `firing` or `resolved`, or empty if nothing was sent. |
+| `deduplication-key` | The deduplication key used. |
 
 ## Metadata
 
 Every event carries this metadata, which you can use in alert source attribute expressions, routes and filters in incident.io:
 
-| Key                                                                | Description                                                                                                                                                      |
-| ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `repository`, `workflow`, `job`, `branch`                          | Where the run happened. `job` is empty under `workflow_run`.                                                                                                     |
-| `sha`, `commit_url`, `commit_message`                              | The commit.                                                                                                                                                      |
-| `commit_author_name`, `commit_author_email`, `commit_author_login` | The commit's author. `commit_author_email` can map the alert to an incident.io user.                                                                             |
-| `commit_details`                                                   | Where the commit fields came from: `api`, `event` (the event payload, which has no author login) or `unavailable` (all commit fields but `commit_url` are null). |
-| `actor`, `event_name`                                              | Who or what triggered the run.                                                                                                                                   |
-| `run_id`, `run_attempt`, `run_url`                                 | The workflow run.                                                                                                                                                |
-| `failure_details`                                                  | `included`, `not_applicable` (a resolve) or `unavailable` (no token, or the API refused it). The three fields below are null unless this is `included`.          |
-| `failed_jobs`                                                      | The failed jobs, as described below. An empty list means the lookup worked and found no failed jobs.                                                             |
-| `failed_jobs_total`, `failed_jobs_truncated`                       | How many jobs failed, and whether `failed_jobs` lists fewer than that.                                                                                           |
+| Key | Description |
+| --- | --- |
+| `repository`, `workflow`, `job`, `branch` | Where the run happened. `job` is empty under `workflow_run`. |
+| `sha`, `commit_url`, `commit_message` | The commit. |
+| `commit_author_name`, `commit_author_email`, `commit_author_login` | The commit's author. `commit_author_email` can map the alert to an incident.io user. |
+| `commit_details` | Where the commit fields came from: `api`, `event` (the event payload, which has no author login) or `unavailable` (all commit fields but `commit_url` are null). |
+| `actor`, `event_name` | Who or what triggered the run. |
+| `run_id`, `run_attempt`, `run_url` | The workflow run. |
+| `failure_details` | `included`, `not_applicable` (a resolve) or `unavailable` (no token, or the API refused it). The three fields below are null unless this is `included`. |
+| `failed_jobs` | The failed jobs, as described below. An empty list means the lookup worked and found no failed jobs. |
+| `failed_jobs_total`, `failed_jobs_truncated` | How many jobs failed, and whether `failed_jobs` lists fewer than that. |
 
 Each entry in `failed_jobs` looks like this:
 
