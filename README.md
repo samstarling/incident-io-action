@@ -20,9 +20,14 @@ GitHub-hosted runner has.
 - The commit: SHA, message, and author's name, email and GitHub login. On
   pull requests this is the PR's head commit, not the merge commit.
 - Who or what triggered the run.
-- On failure, the failed jobs and steps, with up to five error messages each,
-  taken from the job's error annotations (anything a step reports with
-  `::error::`, and most test reporters and linters).
+- On failure, the failed jobs and steps, with their error messages taken from
+  the job's error annotations (anything a step reports with `::error::`, and
+  most test reporters and linters).
+
+To keep the payload bounded, an alert lists at most five failed jobs, five
+error messages per job and 1,000 characters per message. Whenever a limit
+cuts something, the alert says so: the description ends the list with "…and
+N more", and the metadata carries the totals and a `truncated` flag.
 
 For example:
 
@@ -137,15 +142,40 @@ jobs:
 Every event carries this metadata, which you can use in alert source
 attribute expressions, routes and filters in incident.io:
 
-| Key                                                                | Description                                                                          |
-| ------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
-| `repository`, `workflow`, `job`, `branch`                          | Where the run happened. `job` is empty under `workflow_run`.                         |
-| `sha`, `commit_url`, `commit_message`                              | The commit.                                                                          |
-| `commit_author_name`, `commit_author_email`, `commit_author_login` | The commit's author. `commit_author_email` can map the alert to an incident.io user. |
-| `actor`, `event_name`                                              | Who or what triggered the run.                                                       |
-| `run_id`, `run_attempt`, `run_url`                                 | The workflow run.                                                                    |
-| `failed_jobs`                                                      | On failure, a list of `{name, url, failed_steps, errors: [{message, path, line}]}`.  |
+| Key                                                                | Description                                                                                                                                                      |
+| ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `repository`, `workflow`, `job`, `branch`                          | Where the run happened. `job` is empty under `workflow_run`.                                                                                                     |
+| `sha`, `commit_url`, `commit_message`                              | The commit.                                                                                                                                                      |
+| `commit_author_name`, `commit_author_email`, `commit_author_login` | The commit's author. `commit_author_email` can map the alert to an incident.io user.                                                                             |
+| `commit_details`                                                   | Where the commit fields came from: `api`, `event` (the event payload, which has no author login) or `unavailable` (all commit fields but `commit_url` are null). |
+| `actor`, `event_name`                                              | Who or what triggered the run.                                                                                                                                   |
+| `run_id`, `run_attempt`, `run_url`                                 | The workflow run.                                                                                                                                                |
+| `failure_details`                                                  | `included`, `not_applicable` (a resolve) or `unavailable` (no token, or the API refused it). The three fields below are null unless this is `included`.          |
+| `failed_jobs`                                                      | The failed jobs, as described below. An empty list means the lookup worked and found no failed jobs.                                                             |
+| `failed_jobs_total`, `failed_jobs_truncated`                       | How many jobs failed, and whether `failed_jobs` lists fewer than that.                                                                                           |
 
-Commit fields are null when the commit could not be read.
+Each entry in `failed_jobs` looks like this:
+
+```json
+{
+  "name": "test (ios-18)",
+  "url": "https://github.com/acme/app/actions/runs/1/job/12",
+  "failed_steps": ["Run tests"],
+  "errors": [
+    {
+      "message": "AssertionError: expected 2 to equal 3",
+      "message_truncated": false,
+      "path": "tests/login.test.ts",
+      "line": 40
+    }
+  ],
+  "errors_total": 1,
+  "errors_truncated": false
+}
+```
+
+`errors`, `errors_total` and `errors_truncated` are null when the job's error
+messages could not be read. `path` and `line` are null for errors that do not
+point at a file.
 
 Keys in the `metadata` input are added to these, and override them on a clash.

@@ -76,12 +76,17 @@ else
   default_dedup_key="${repo}/${workflow}/${job}/${GITHUB_REF_NAME}"
 fi
 
+max_jobs=5
+max_errors_per_job=5
+max_message_length=1000
+
 commit_jq='{message, author_name, author_email, author_login, url}'
-commit=$(
+if commit=$(
   github_api "repos/${repo}/commits/${sha}" |
-    jq "{message: .commit.message, author_name: .commit.author.name, author_email: .commit.author.email, author_login: .author.login, url: .html_url} | $commit_jq"
-) || commit=""
-if [[ -z "$commit" ]]; then
+    jq -e "{message: .commit.message, author_name: .commit.author.name, author_email: .commit.author.email, author_login: .author.login, url: .html_url} | $commit_jq"
+); then
+  commit_details=api
+else
   api_notice "the commit" "contents: read"
   commit=$(
     jq --arg sha "$sha" \
@@ -90,39 +95,72 @@ if [[ -z "$commit" ]]; then
         | $commit_jq" \
       "$event_file" 2>/dev/null
   ) || true
-  [[ -n "$commit" ]] || commit='{}'
+  if [[ -n "$commit" ]]; then
+    commit_details=event
+  else
+    commit_details=unavailable
+    commit='{}'
+  fi
 fi
 commit=$(jq --arg url "${GITHUB_SERVER_URL}/${repo}/commit/${sha}" '.url //= $url' <<<"$commit")
 
-failed_jobs='[]'
-if [[ "$status" == firing && -n "$run_id" ]]; then
-  if jobs=$(github_api "repos/${repo}/actions/runs/${run_id}/attempts/${run_attempt}/jobs?per_page=100"); then
+list_jobs() {
+  local page=1 jobs='[]' response
+  while true; do
+    response=$(github_api "repos/${repo}/actions/runs/${run_id}/attempts/${run_attempt}/jobs?per_page=100&page=${page}") || return 1
+    jobs=$(jq -s '.[0] + .[1].jobs' <(echo "$jobs") <(echo "$response"))
+    if jq -e --argjson fetched "$(jq length <<<"$jobs")" '(.jobs | length) == 0 or $fetched >= .total_count' <<<"$response" >/dev/null; then
+      break
+    fi
+    page=$((page + 1))
+  done
+  echo "$jobs"
+}
+
+failure_details=not_applicable
+failed_jobs=null
+failed_jobs_total=null
+if [[ "$status" == firing ]]; then
+  failure_details=unavailable
+  if [[ -n "$run_id" ]] && jobs=$(list_jobs); then
+    failure_details=included
     # Within a run, report only this job: the jobs API marks it in progress on this runner.
-    failed_jobs=$(
+    all_failed_jobs=$(
       jq --arg runner "${RUNNER_NAME:-}" --argjson current_run "$current_run" '
-        [.jobs[] | select(.conclusion == "failure" or any(.steps[]?; .conclusion == "failure"))] as $failed
+        [.[] | select(.conclusion == "failure" or any(.steps[]?; .conclusion == "failure"))] as $failed
         | [$failed[] | select(.status == "in_progress" and .runner_name == $runner)] as $this_job
         | (if $current_run and ($this_job | length) > 0 then $this_job else $failed end)
-        | map({id, name, url: .html_url, failed_steps: [.steps[]? | select(.conclusion == "failure") | .name]})
-        | .[:5]' <<<"$jobs"
+        | map({id, name, url: .html_url, failed_steps: [.steps[]? | select(.conclusion == "failure") | .name]})' <<<"$jobs"
     )
+    failed_jobs_total=$(jq length <<<"$all_failed_jobs")
+
+    failed_jobs='[]'
+    while IFS= read -r failed_job; do
+      job_id=$(jq -r .id <<<"$failed_job")
+      # A job's check run shares its ID, and its failure annotations hold the ::error messages.
+      if annotations=$(github_api "repos/${repo}/check-runs/${job_id}/annotations?per_page=100"); then
+        errors=$(
+          jq --argjson max_errors "$max_errors_per_job" --argjson max_length "$max_message_length" '
+            [.[] | select(.annotation_level == "failure")
+              | select(.message | test("^Process completed with exit code \\d+\\.$") | not)]
+            # GitHub files annotations that have no source location under the path ".github".
+            | map((.path != ".github") as $located | {
+                message: .message[0:$max_length],
+                message_truncated: ((.message | length) > $max_length),
+                path: (if $located then .path else null end),
+                line: (if $located then .start_line else null end)
+              })
+            | {errors: .[:$max_errors], errors_total: length, errors_truncated: (length > $max_errors)}' <<<"$annotations"
+        )
+      else
+        api_notice "the error messages" "checks: read"
+        errors='{"errors": null, "errors_total": null, "errors_truncated": null}'
+      fi
+      failed_jobs=$(jq --argjson job "$failed_job" --argjson errors "$errors" '. + [$job + $errors | del(.id)]' <<<"$failed_jobs")
+    done < <(jq -c --argjson max_jobs "$max_jobs" '.[:$max_jobs][]' <<<"$all_failed_jobs")
   else
     api_notice "the failed jobs" "actions: read"
   fi
-
-  with_errors='[]'
-  while IFS= read -r failed_job; do
-    job_id=$(jq -r .id <<<"$failed_job")
-    # A job's check run shares its ID, and its failure annotations hold the ::error messages.
-    errors=$(
-      github_api "repos/${repo}/check-runs/${job_id}/annotations?per_page=100" |
-        jq '[.[] | select(.annotation_level == "failure")
-              | select(.message | test("^Process completed with exit code \\d+\\.$") | not)
-              | {message: (.message | gsub("\\s+"; " ") | .[0:300]), path, line: .start_line}][:5]'
-    ) || errors='[]'
-    with_errors=$(jq --argjson job "$failed_job" --argjson errors "$errors" '. + [$job + {errors: $errors}]' <<<"$with_errors")
-  done < <(jq -c '.[]' <<<"$failed_jobs")
-  failed_jobs=$(jq 'map(del(.id))' <<<"$with_errors")
 fi
 
 dedup_key="${INPUT_DEDUPLICATION_KEY:-$default_dedup_key}"
@@ -136,7 +174,8 @@ else
     jq -rn \
       --arg workflow "$workflow" --arg job "$job" --arg branch "$branch" --arg sha "$sha" \
       --arg trigger "$trigger" --arg actor "$actor" --arg run_url "$run_url" \
-      --argjson commit "$commit" --argjson failed_jobs "$failed_jobs" '
+      --argjson commit "$commit" --arg failure_details "$failure_details" \
+      --argjson failed_jobs "$failed_jobs" --argjson failed_jobs_total "$failed_jobs_total" '
       [
         "**Workflow:** \($workflow)" + (if $job != "" then " (job `\($job)`)" else "" end),
         "**Branch:** `\($branch)`",
@@ -147,12 +186,22 @@ else
         else empty end),
         "**Triggered by:** \($trigger) from @\($actor)"
       ]
-      + (if ($failed_jobs | length) > 0 then
+      + (if $failure_details == "unavailable" then
+          ["", "**Failed:** details could not be read from the GitHub API."]
+        elif ($failed_jobs | length) > 0 then
           ["", "**Failed:**"]
           + [$failed_jobs[]
               | "- [\(.name)](\(.url))"
                 + (if (.failed_steps | length) > 0 then ", step " + (.failed_steps | map("`\(.)`") | join(", ")) else "" end),
-                (.errors[] | "  - \(.message)")]
+                (if .errors == null then "  - _Error messages could not be read._"
+                else
+                  (.errors[] | (.message | split("\n")[0]) as $first_line
+                    | "  - " + $first_line[0:200] + (if ($first_line | length) > 200 or .message != $first_line then "…" else "" end)),
+                  (if .errors_truncated then "  - …and \(.errors_total - (.errors | length)) more" else empty end)
+                end)]
+          + (if $failed_jobs_total > ($failed_jobs | length) then
+              ["- …and \($failed_jobs_total - ($failed_jobs | length)) more failed jobs"]
+            else [] end)
         else [] end)
       + ["", "[View workflow run](\($run_url))"]
       | join("\n")'
@@ -168,7 +217,11 @@ body=$(
     --arg source_url "$source_url" \
     --argjson extra "$metadata" \
     --argjson commit "$commit" \
+    --arg commit_details "$commit_details" \
+    --arg failure_details "$failure_details" \
     --argjson failed_jobs "$failed_jobs" \
+    --argjson failed_jobs_total "$failed_jobs_total" \
+    --argjson max_jobs "$max_jobs" \
     --arg repository "$repo" \
     --arg workflow "$workflow" \
     --arg job "$job" \
@@ -196,12 +249,16 @@ body=$(
         run_id: $run_id,
         run_attempt: $run_attempt,
         run_url: $run_url,
+        commit_details: $commit_details,
         commit_message: $commit.message,
         commit_url: $commit.url,
         commit_author_name: $commit.author_name,
         commit_author_email: $commit.author_email,
         commit_author_login: $commit.author_login,
-        failed_jobs: $failed_jobs
+        failure_details: $failure_details,
+        failed_jobs: $failed_jobs,
+        failed_jobs_total: $failed_jobs_total,
+        failed_jobs_truncated: (if $failed_jobs_total == null then null else $failed_jobs_total > $max_jobs end)
       } + $extra)
     }'
 )
