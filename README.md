@@ -160,3 +160,13 @@ Each entry in `failed_jobs` looks like this:
 `errors`, `errors_total` and `errors_truncated` are null when the job's error messages could not be read. `path` and `line` are null for errors that do not point at a file.
 
 Keys in the `metadata` input are added to these, and override them on a clash.
+
+## Releasing
+
+Releases follow [semantic versioning](https://semver.org). To release, create a GitHub release from `main` with a `vX.Y.Z` tag:
+
+```sh
+gh release create v1.2.3 --generate-notes
+```
+
+The release workflow then moves the major version tag (`v1`) to the new release, so anyone using `@v1` picks it up. A breaking change gets a new major version, which creates a new major tag and leaves the old one in place. Pre-releases do not move the major tag.
