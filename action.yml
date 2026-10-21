@@ -41,6 +41,12 @@ inputs:
     description: Link shown on the alert. Defaults to the workflow run.
     required: false
     default: ""
+  github-token:
+    description: >-
+      Token for reading the commit and failed jobs from the GitHub API. Needs
+      contents, actions and checks read access. Empty to skip the lookups.
+    required: false
+    default: ${{ github.token }}
   api-url:
     description: incident.io API base URL.
     required: false
@@ -75,4 +81,4 @@ runs:
         INPUT_SOURCE_URL: ${{ inputs.source-url }}
         INPUT_API_URL: ${{ inputs.api-url }}
         INPUT_FAIL_ON_ERROR: ${{ inputs.fail-on-error }}
-        HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        INPUT_GITHUB_TOKEN: ${{ inputs.github-token }}
